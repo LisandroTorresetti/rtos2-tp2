@@ -5,15 +5,26 @@
 #include <stdint.h>
 #include "cmsis_os.h"
 
-typedef struct {
-    uint16_t blink_time;
-} ao_led_message_t;
+typedef struct msg_t ao_led_message_t;
+
+typedef void (*callback_t)(ao_led_message_t* pmsg);
+
+typedef enum {
+    MSG_AO_LED_EVENT_SET_COLOR,
+    MSG_AO_LED_EVENT_RESET_COLOR,
+} actionColour;
 
 typedef enum {
     AO_LED_COLOR_RED,
     AO_LED_COLOR_GREEN,
     AO_LED_COLOR_BLUE,
 } ao_led_color_t;
+
+struct msg_t {
+    callback_t callback;
+    actionColour action;
+    ao_led_color_t actualColour;
+};
 
 typedef struct {
     ao_led_color_t color;

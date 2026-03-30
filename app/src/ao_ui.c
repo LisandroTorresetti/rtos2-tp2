@@ -28,18 +28,39 @@ typedef struct {
 /********************** internal data definition *****************************/
 
 static ao_ui_handle_t hao;
-
+static callback_t nextCallback;
+static void freeCallback(ao_led_message_t* msg);
+static void resetCallback(ao_led_message_t* msg);
+static ao_led_color_t lastColour;
 /********************** internal functions definition ************************/
+
+static void freeCallback(ao_led_message_t* msg) {
+  vPortFree((void*) msg);
+  nextCallback = resetCallback;
+  lastColour = msg->actualColour;
+}
+
+static void resetCallback(ao_led_message_t* msg) {
+  vPortFree((void*) msg);
+  if (msg->action == MSG_AO_LED_EVENT_RESET_COLOR) {
+    ao_led_message_t* newMsg = (ao_led_message_t*) pvPortMalloc(sizeof (ao_led_message_t));
+    msg->callback = nextCallback;
+    newMsg->callback = resetCallback;
+    ao_led_send(&hao.colours[msg->actualColour], newMsg);
+  }
+}
 
 static void task(void *argument) {
   while (true) {
-    ao_led_message_t msg;
-    msg.blink_time = BLINK_PERIOD_MS;
+    ao_led_message_t* msg = (ao_led_message_t*) pvPortMalloc(sizeof (ao_led_message_t));
+    msg->callback = nextCallback;
     msg_event_t event_msg;
 
     if (pdPASS == xQueueReceive(hao.hqueue, &event_msg, portMAX_DELAY)) {
       ao_led_handler_t haoLed = hao.colours[event_msg];
-      ao_led_send(&haoLed, &msg);
+      msg->action = haoLed.color != lastColour;
+      msg->actualColour = haoLed.color;
+      ao_led_send(&haoLed, msg);
     }
   }
 }
@@ -56,7 +77,9 @@ void ao_ui_init(ao_led_handler_t colours[3]) {
     // error
   }
 
-  BaseType_t status = xTaskCreate(task, "task_ao_ui", 128, NULL, tskIDLE_PRIORITY, NULL);
+  nextCallback = freeCallback;
+
+  BaseType_t status = xTaskCreate(task, "task_ao_ui", 128, NULL, tskIDLE_PRIORITY, NULL); // ToDo move this to free when unused (This entire creation and destruction has to be done dynamically)
   while (pdPASS != status) {
     // error
   }

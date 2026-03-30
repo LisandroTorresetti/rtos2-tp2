@@ -16,9 +16,8 @@ static void task(void *argument)
         ao_led_message_t msg;
 
         if (pdPASS == xQueueReceive(hao->hqueue, &msg, portMAX_DELAY)) {
-            HAL_GPIO_WritePin(led_port[hao->color], led_pin[hao->color], GPIO_PIN_SET);
-            vTaskDelay(msg.blink_time / portTICK_PERIOD_MS);
-            HAL_GPIO_WritePin(led_port[hao->color], led_pin[hao->color], GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(led_port[hao->color], led_pin[hao->color], (GPIO_PinState) msg.action);
+            msg.callback(&msg);
         }
     }
 }
@@ -36,6 +35,7 @@ void ao_led_init(ao_led_handler_t* hao, ao_led_color_t color) {
     while(NULL == hao->hqueue) {
         // error
     }
+
 
     BaseType_t status = xTaskCreate(task, "task_ao_led", 128, (void * const) hao, tskIDLE_PRIORITY, NULL);
     while (pdPASS != status) {
