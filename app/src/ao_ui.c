@@ -45,7 +45,7 @@ static void resetCallback(ao_led_message_t* msg) {
   if (msg->action == MSG_AO_LED_EVENT_RESET_COLOR) {
     ao_led_message_t* newMsg = (ao_led_message_t*) pvPortMalloc(sizeof (ao_led_message_t));
     msg->callback = nextCallback;
-    newMsg->callback = resetCallback;
+    newMsg->callback = freeCallback;
     ao_led_send(&hao.colours[msg->actualColour], newMsg);
   }
 }
@@ -57,7 +57,7 @@ static void task(void *argument) {
     msg_event_t event_msg;
 
     if (pdPASS == xQueueReceive(hao.hqueue, &event_msg, portMAX_DELAY)) {
-      ao_led_handler_t haoLed = hao.colours[event_msg];
+      ao_led_handler_t haoLed = hao.colours[lastColour || event_msg];
       msg->action = haoLed.color != lastColour;
       msg->actualColour = haoLed.color;
       ao_led_send(&haoLed, msg);
