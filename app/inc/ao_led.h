@@ -24,6 +24,7 @@ struct msg_t {
     callback_t callback;
     actionColour action;
     ao_led_color_t actualColour;
+    ao_led_color_t nextColour;
 };
 
 typedef struct {
