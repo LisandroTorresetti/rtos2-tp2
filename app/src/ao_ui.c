@@ -35,21 +35,21 @@ static ao_led_color_t lastColour;
 /********************** internal functions definition ************************/
 
 static void freeCallback(ao_led_message_t* msg) {
-  vPortFree((void*) msg);
   nextCallback = resetCallback;
   lastColour = msg->actualColour;
+  vPortFree((void*) msg);
 }
 
 static void resetCallback(ao_led_message_t* msg) {
-  vPortFree((void*) msg);
   if (msg->action == MSG_AO_LED_EVENT_RESET_COLOR) {
     ao_led_message_t* newMsg = (ao_led_message_t*) pvPortMalloc(sizeof (ao_led_message_t));
     msg->callback = nextCallback;
     newMsg->callback = freeCallback;
     newMsg->action = MSG_AO_LED_EVENT_SET_COLOR;
     newMsg->actualColour = msg->nextColour;
-    ao_led_send(&hao.colours[msg->nextColour], newMsg);
+    ao_led_send(&hao.colours[msg->nextColour], (void*) &newMsg);
   }
+  vPortFree((void*) msg);
 }
 
 static void task(void *argument) {
