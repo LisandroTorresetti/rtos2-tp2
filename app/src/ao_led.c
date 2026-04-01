@@ -13,18 +13,18 @@ static void task(void *argument)
 {
     ao_led_handler_t* hao = argument;
     while (true) {
-        ao_led_message_t msg;
+        ao_led_message_t* msg;
 
-        if (pdPASS == xQueueReceive(hao->hqueue, &msg, portMAX_DELAY)) {
-            HAL_GPIO_WritePin(led_port[hao->color], led_pin[hao->color], (GPIO_PinState) msg.action);
-            msg.callback(&msg);
+        if (pdPASS == xQueueReceive(hao->hqueue, (void*) &msg, portMAX_DELAY)) {
+            // HAL_GPIO_WritePin(led_port[hao->color], led_pin[hao->color], (GPIO_PinState) msg->action);
+            msg->callback(msg);
         }
     }
 }
 
 /********************** external functions definition ************************/
 
-bool ao_led_send(ao_led_handler_t* hao, ao_led_message_t* msg) {
+bool ao_led_send(ao_led_handler_t* hao, void* msg) {
     return (pdPASS == xQueueSend(hao->hqueue, (void*)msg, 0));
 }
 

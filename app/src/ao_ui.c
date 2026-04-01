@@ -48,7 +48,7 @@ static void resetCallback(ao_led_message_t* msg) {
     newMsg->callback = freeCallback;
     newMsg->action = MSG_AO_LED_EVENT_SET_COLOR;
     newMsg->actualColour = msg->nextColour;
-    ao_led_send(&hao.colours[msg->actualColour], newMsg);
+    ao_led_send(&hao.colours[msg->nextColour], newMsg);
   }
 }
 
@@ -63,7 +63,7 @@ static void task(void *argument) {
       msg->action = haoLed.color != lastColour;
       msg->actualColour = haoLed.color;
       msg->nextColour = (ao_led_color_t) event_msg;
-      ao_led_send(&haoLed, msg);
+      ao_led_send(&haoLed, (void*) &msg);
     }
   }
 }
