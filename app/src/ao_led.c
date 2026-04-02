@@ -25,7 +25,7 @@ static void task(void *argument)
 /********************** external functions definition ************************/
 
 bool ao_led_send(ao_led_handler_t* hao, ao_led_message_t* msg) {
-    return (pdPASS == xQueueSend(hao->hqueue, (void*)msg, 0));
+    return (pdPASS == xQueueSend(hao->hqueue, &msg, 0));
 }
 
 void ao_led_init(ao_led_handler_t* hao, ao_led_color_t color) {
