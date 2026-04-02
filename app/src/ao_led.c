@@ -3,7 +3,7 @@
 #include "main.h"
 
 #define QUEUE_LENGTH            (1)
-#define QUEUE_ITEM_SIZE         (sizeof(ao_led_message_t))
+#define QUEUE_ITEM_SIZE         (sizeof(ao_led_message_t*))
 
 static GPIO_TypeDef* led_port[] = {LED_RED_PORT, LED_GREEN_PORT,  LED_BLUE_PORT};
 static uint16_t led_pin[] = {LED_RED_PIN,  LED_GREEN_PIN, LED_BLUE_PIN };
@@ -24,7 +24,7 @@ static void task(void *argument)
 
 /********************** external functions definition ************************/
 
-bool ao_led_send(ao_led_handler_t* hao, void* msg) {
+bool ao_led_send(ao_led_handler_t* hao, ao_led_message_t* msg) {
     return (pdPASS == xQueueSend(hao->hqueue, (void*)msg, 0));
 }
 

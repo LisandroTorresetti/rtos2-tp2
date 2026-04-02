@@ -32,7 +32,7 @@ typedef struct {
     QueueHandle_t hqueue;
 } ao_led_handler_t;
 
-bool ao_led_send(ao_led_handler_t* hao, void* msg);
+bool ao_led_send(ao_led_handler_t* hao, ao_led_message_t* msg);
 
 void ao_led_init(ao_led_handler_t* hao, ao_led_color_t color);
 

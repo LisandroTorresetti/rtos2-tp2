@@ -43,11 +43,10 @@ static void freeCallback(ao_led_message_t* msg) {
 static void resetCallback(ao_led_message_t* msg) {
   if (msg->action == MSG_AO_LED_EVENT_RESET_COLOR) {
     ao_led_message_t* newMsg = (ao_led_message_t*) pvPortMalloc(sizeof (ao_led_message_t));
-    msg->callback = nextCallback;
     newMsg->callback = freeCallback;
     newMsg->action = MSG_AO_LED_EVENT_SET_COLOR;
     newMsg->actualColour = msg->nextColour;
-    ao_led_send(&hao.colours[msg->nextColour], (void*) &newMsg);
+    ao_led_send(&hao.colours[msg->nextColour], newMsg);
   }
   vPortFree((void*) msg);
 }
@@ -63,7 +62,7 @@ static void task(void *argument) {
       msg->action = haoLed.color != lastColour;
       msg->actualColour = haoLed.color;
       msg->nextColour = (ao_led_color_t) event_msg;
-      ao_led_send(&haoLed, (void*) &msg);
+      ao_led_send(&haoLed, msg);
     }
   }
 }
