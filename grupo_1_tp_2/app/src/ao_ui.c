@@ -57,11 +57,6 @@ static const char* TASK_NAME = "task_ao_ui";
 
 /********************** internal data declaration ****************************/
 
-typedef struct {
-  QueueHandle_t hqueue;
-  ao_led_handler_t colours[3];
-} ao_ui_handle_t;
-
 typedef enum {
     STANDBY_STATE,
     RED_STATE,
@@ -70,26 +65,27 @@ typedef enum {
 } state_type_t;
 
 typedef struct {
-	state_type_t state;
-	ao_led_handler_t* state_handler;
+	state_type_t state_type;
+	ao_led_handler_t state_handler;
 } state_t;
 
-static state_t current_state;
+typedef struct {
+  QueueHandle_t hqueue;
+  state_t states[4];
+} ao_ui_handle_t;
 
-// cada estado puede saber como transicionar a otro o que hacer dependiendo del pulso
-// si soy rojo y me llega algo rojo me quedo en el lugar, mientras que si llega uno de los otros casos voy para alla
 
+static state_type_t current_state;
 
 
 /********************** internal functions declaration ***********************/
 
-static void init_state(ao_ui_handle_t* ui_handler, state_t* state, msg_event_t event_msg);
-static void entry_state(ao_led_handler_t* ao_led_handler); // tiene que pasarle el AO del led handler y sabe que mandar
+static void entry_state(ao_led_handler_t* ao_led_handler);
 static void exit_state(ao_led_handler_t* ao_led_handler);
 
 /********************** internal data definition *****************************/
 
-static ao_ui_handle_t hao;
+static ao_ui_handle_t ao_ui_handler;
 
 /********************** internal functions definition ************************/
 
@@ -97,22 +93,20 @@ static void task(void *argument) {
   while (true) {
     msg_event_t event_msg;
 
-    if (pdPASS == xQueueReceive(hao.hqueue, &event_msg, portMAX_DELAY)) {
-    	state_t new_state;
-    	init_state(&hao, &new_state, event_msg);
+    if (pdPASS == xQueueReceive(ao_ui_handler.hqueue, &event_msg, portMAX_DELAY)) {
+    	state_type_t new_state = event_msg + 1;
 
-    	if (new_state.state == current_state.state) {
+    	if (new_state == current_state) {
     		continue;
     	}
 
-    	if (current_state.state_handler != NULL) {
-        	exit_state(current_state.state_handler);
+    	if (current_state != STANDBY_STATE) {
+        	exit_state(&ao_ui_handler.states[current_state].state_handler);
     	}
 
-    	entry_state(new_state.state_handler);
+    	entry_state(&ao_ui_handler.states[new_state].state_handler);
 
-    	current_state.state = new_state.state;
-    	current_state.state_handler = new_state.state_handler;
+    	current_state = new_state;
     }
   }
 }
@@ -129,30 +123,12 @@ void exit_state(ao_led_handler_t* ao_led_handler) {
 	ao_led_send(ao_led_handler, &msg);
 }
 
-void init_state(ao_ui_handle_t* ui_handler, state_t* state, msg_event_t event_msg) {
-	state->state_handler = &ui_handler->colours[event_msg];
-	if (event_msg == MSG_EVENT_BUTTON_PULSE) {
-		state->state = RED_STATE;
-		return;
-
-	}
-
-	if (event_msg == MSG_EVENT_BUTTON_SHORT) {
-		state->state = GREEN_STATE;
-		return;
-	}
-
-	state->state = BLUE_STATE;
-}
 
 /********************** external functions PULSE definition ************************/
 
 app_err_t ao_ui_init(ao_led_handler_t colours[3]) {
-  current_state.state = STANDBY_STATE;
-  current_state.state_handler = NULL;
-
-  hao.hqueue = xQueueCreate(QUEUE_LENGTH, QUEUE_ITEM_SIZE);
-  if (NULL == hao.hqueue) {
+  ao_ui_handler.hqueue = xQueueCreate(QUEUE_LENGTH, QUEUE_ITEM_SIZE);
+  if (NULL == ao_ui_handler.hqueue) {
     return ERR_NO_MEMORY;
   }
 
@@ -161,17 +137,19 @@ app_err_t ao_ui_init(ao_led_handler_t colours[3]) {
 	  return ERR_NO_MEMORY;
   }
 
+  current_state = STANDBY_STATE;
+  ao_ui_handler.states[0].state_type = STANDBY_STATE;
+
   for (uint8_t i = 0; i < 3; i++) {
-    hao.colours[i] = colours[i];
+	  ao_ui_handler.states[i + 1].state_type = i + 1;
+	  ao_ui_handler.states[i + 1].state_handler = colours[i];
   }
 
   return APP_OK;
 }
 
 bool ao_ui_send_event(msg_event_t msg) {
-	// misma logica para ver si creas la task o no
-
-  return (pdPASS == xQueueSend(hao.hqueue, &msg, 0));
+  return (pdPASS == xQueueSend(ao_ui_handler.hqueue, &msg, 0));
 }
 
 /********************** end of file ******************************************/
