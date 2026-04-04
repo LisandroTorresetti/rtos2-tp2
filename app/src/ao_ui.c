@@ -37,6 +37,7 @@ static bool taskCreated = false;
 /********************** internal functions definition ************************/
 
 static void freeCallback(ao_led_message_t* msg) {
+  wasSet = true;
   nextCallback = resetCallback;
   lastColour = msg->actualColour;
   vPortFree((void*) msg);
@@ -63,13 +64,12 @@ static void task(void *argument) {
       ao_led_message_t* msg = (ao_led_message_t*) pvPortMalloc(sizeof (ao_led_message_t));
       ao_led_color_t thisColour = (ao_led_color_t) event_msg;
       msg->callback = nextCallback;
-      ao_led_handler_t haoLed = hao.colours[wasSet ? lastColour : event_msg];
+      ao_led_handler_t haoLed = hao.colours[wasSet ? lastColour : thisColour];
       msg->action = thisColour != lastColour && wasSet;
       msg->actualColour = wasSet ? lastColour : haoLed.color;
       msg->nextColour = thisColour;
-      wasSet = true;
       if (!ao_led_send(&haoLed, msg)) {
-    	  LOGGER_INFO("[AO UI] Could not send msg, msg will be ignored, this should never fail");
+    	  LOGGER_INFO("[AO UI] Could not send msg, will be ignored");
     	  vPortFree((void*) msg);
       }
       lastColour = haoLed.color;
