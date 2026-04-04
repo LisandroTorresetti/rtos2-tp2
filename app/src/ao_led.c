@@ -6,6 +6,11 @@
 #define QUEUE_LENGTH            (10)
 #define QUEUE_ITEM_SIZE         (sizeof(ao_led_message_t*))
 #define HAS_PINS_CONNECTED 0
+#define USE_SAME_QUEUE 1
+
+#if USE_SAME_QUEUE
+static QueueHandle_t queue = NULL;
+#endif
 
 #if HAS_PINS_CONNECTED
 static GPIO_TypeDef* led_port[] = {LED_RED_PORT, LED_GREEN_PORT,  LED_BLUE_PORT};
@@ -22,20 +27,25 @@ static void task(void *argument)
     	taskENTER_CRITICAL();
         ao_led_message_t* msg;
         if (pdPASS == xQueueReceive(hao->hqueue, (void*) &msg, 0)) {
+        	taskEXIT_CRITICAL();
         	GPIO_PinState realAction = !msg->action;
-#if HAS_PINS_CONNECTED
-            HAL_GPIO_WritePin(led_port[hao->color], led_pin[hao->color], realAction);
+#if USE_SAME_QUEUE
+        	ao_led_color_t color = msg->actualColour;
+#else
+        	ao_led_color_t color = hao->color;
 #endif
-        	char log_message[256];        	snprintf(log_message, sizeof(log_message), "writing colour with action: %s, action: %s", colours[hao->color], actions[realAction]);
+#if HAS_PINS_CONNECTED
+            HAL_GPIO_WritePin(led_port[color], led_pin[color], realAction);
+#endif
+        	char log_message[256];        	snprintf(log_message, sizeof(log_message), "writing colour with action: %s, action: %s", colours[color], actions[realAction]);
         	LOGGER_INFO(log_message);
         	msg->callback(msg);
-        	taskEXIT_CRITICAL();
         } else {
+        	hao->taskFunctioning = false;
+			taskEXIT_CRITICAL();
         	char log_message[256];
 			snprintf(log_message, sizeof(log_message), "I as led: %s, will be killed", colours[hao->color]);
 			LOGGER_INFO(log_message);
-			hao->taskFunctioning = false;
-			taskEXIT_CRITICAL();
 			vTaskDelete(NULL);
         };
     }
@@ -55,8 +65,14 @@ bool ao_led_send(ao_led_handler_t* hao, ao_led_message_t* msg) {
 
 void ao_led_init(ao_led_handler_t* hao, ao_led_color_t color) {
     hao->color = color;
-
+#if USE_SAME_QUEUE // DOne like this because some interpretation on 2 that said to use the same thread of execution
+    if (queue == NULL) {
+    	queue = xQueueCreate(QUEUE_LENGTH, QUEUE_ITEM_SIZE);
+    }
+    hao->hqueue = queue;
+#else
     hao->hqueue = xQueueCreate(QUEUE_LENGTH, QUEUE_ITEM_SIZE);
+#endif
     while(NULL == hao->hqueue) {
         // error
     }
