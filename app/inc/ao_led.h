@@ -30,6 +30,7 @@ struct msg_t {
 typedef struct {
     ao_led_color_t color;
     QueueHandle_t hqueue;
+    bool taskFunctioning;
 } ao_led_handler_t;
 
 bool ao_led_send(ao_led_handler_t* hao, ao_led_message_t* msg);

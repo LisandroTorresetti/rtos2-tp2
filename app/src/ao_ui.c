@@ -33,6 +33,7 @@ static void freeCallback(ao_led_message_t* msg);
 static void resetCallback(ao_led_message_t* msg);
 static ao_led_color_t lastColour;
 static bool wasSet;
+static bool taskCreated = false;
 /********************** internal functions definition ************************/
 
 static void freeCallback(ao_led_message_t* msg) {
@@ -56,20 +57,24 @@ static void task(void *argument) {
   while (true) {
     msg_event_t event_msg;
 
+    taskENTER_CRITICAL();
     if (pdPASS == xQueueReceive(hao.hqueue, &event_msg, 0)) {
-      LOGGER_INFO("TEST FOR THE MESSAGE\n");
       ao_led_message_t* msg = (ao_led_message_t*) pvPortMalloc(sizeof (ao_led_message_t));
+      ao_led_color_t thisColour = (ao_led_color_t) event_msg;
       msg->callback = nextCallback;
       ao_led_handler_t haoLed = hao.colours[wasSet ? lastColour : event_msg];
-      msg->action = event_msg != lastColour && wasSet;
+      msg->action = thisColour != lastColour && wasSet;
       msg->actualColour = wasSet ? lastColour : haoLed.color;
-      msg->nextColour = (ao_led_color_t) event_msg;
+      msg->nextColour = thisColour;
       wasSet = true;
       ao_led_send(&haoLed, msg);
       lastColour = haoLed.color;
+      taskEXIT_CRITICAL();
     } else {
-    	LOGGER_INFO("I should be closed");
-    	vTaskDelay((TickType_t)(1000 / portTICK_PERIOD_MS));
+    	LOGGER_INFO("AO UI being closed as no msg was received");
+    	taskCreated = false;
+    	taskEXIT_CRITICAL();
+    	vTaskDelete(NULL);
     }
   }
 }
@@ -77,7 +82,14 @@ static void task(void *argument) {
 /********************** external functions PULSE definition ************************/
 
 bool ao_ui_send_event(msg_event_t msg) {
-  return (pdPASS == xQueueSend(hao.hqueue, &msg, 0));
+  bool status = (pdPASS == xQueueSend(hao.hqueue, &msg, 0));
+  taskENTER_CRITICAL();
+  if (status && !taskCreated) {
+	  xTaskCreate(task, "task_ao_ui", 128, NULL, tskIDLE_PRIORITY, NULL);
+	  taskCreated = true;
+  }
+  taskEXIT_CRITICAL();
+  return status;
 }
 
 void ao_ui_init(ao_led_handler_t colours[3]) {
@@ -87,11 +99,6 @@ void ao_ui_init(ao_led_handler_t colours[3]) {
   }
 
   nextCallback = freeCallback;
-
-  BaseType_t status = xTaskCreate(task, "task_ao_ui", 128, NULL, tskIDLE_PRIORITY, NULL); // ToDo move this to free when unused (This entire creation and destruction has to be done dynamically)
-  while (pdPASS != status) {
-    // error
-  }
 
   for (uint8_t i = 0; i < 3; i++) {
     hao.colours[i] = colours[i];

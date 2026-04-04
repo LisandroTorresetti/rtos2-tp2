@@ -51,16 +51,6 @@
 #define BUTTON_SHORT_TIMEOUT     (1000)
 #define BUTTON_LONG_TIMEOUT      (2000)
 
-/********************** internal data declaration ****************************/
-
-/********************** internal functions declaration ***********************/
-
-/********************** internal data definition *****************************/
-
-/********************** external data definition *****************************/
-
-/********************** internal functions definition ************************/
-
 typedef enum {
   BUTTON_TYPE_NONE,
   BUTTON_TYPE_PULSE,
@@ -68,6 +58,7 @@ typedef enum {
   BUTTON_TYPE_LONG,
 } button_type_t;
 
+static char pulses[3][10] = { "Pulse", "Short", "Long" };
 /**
  * @brief Categorizes a button press duration into a button_type_t.
  *
@@ -109,7 +100,9 @@ void task_button(void* argument) {
     button_type_t button_type = button_process_state(button_state);
 
     if (button_type != BUTTON_TYPE_NONE) {
-      LOGGER_INFO("Button pressed for", button_type - 1);
+      char log_message[30];
+      snprintf(log_message, sizeof(log_message), "Button pressed for %s", pulses[button_type - 1]);
+	  LOGGER_INFO(log_message);
       ao_ui_send_event(button_type - 1);
     }
 
