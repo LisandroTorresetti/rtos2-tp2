@@ -42,6 +42,7 @@
 #include "main.h"
 #include "cmsis_os.h"
 #include "board.h"
+#include "logger.h"
 
 /********************** macros and definitions *******************************/
 
@@ -108,6 +109,7 @@ void task_button(void* argument) {
     button_type_t button_type = button_process_state(button_state);
 
     if (button_type != BUTTON_TYPE_NONE) {
+      LOGGER_INFO("Button pressed for", button_type - 1);
       ao_ui_send_event(button_type - 1);
     }
 

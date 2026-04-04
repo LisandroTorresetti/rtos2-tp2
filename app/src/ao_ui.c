@@ -9,12 +9,12 @@
 
 #include "ao_ui.h"
 #include "ao_led.h"
+#include "logger.h"
 
 /********************** macros and definitions *******************************/
 
-#define QUEUE_LENGTH            (1)
+#define QUEUE_LENGTH            (10)
 #define QUEUE_ITEM_SIZE         (sizeof(msg_event_t))
-#define BLINK_PERIOD_MS         1000
 
 /********************** internal data declaration ****************************/
 
@@ -32,6 +32,7 @@ static callback_t nextCallback;
 static void freeCallback(ao_led_message_t* msg);
 static void resetCallback(ao_led_message_t* msg);
 static ao_led_color_t lastColour;
+static bool wasSet;
 /********************** internal functions definition ************************/
 
 static void freeCallback(ao_led_message_t* msg) {
@@ -55,14 +56,20 @@ static void task(void *argument) {
   while (true) {
     msg_event_t event_msg;
 
-    if (pdPASS == xQueueReceive(hao.hqueue, &event_msg, portMAX_DELAY)) {
+    if (pdPASS == xQueueReceive(hao.hqueue, &event_msg, 0)) {
+      LOGGER_INFO("TEST FOR THE MESSAGE\n");
       ao_led_message_t* msg = (ao_led_message_t*) pvPortMalloc(sizeof (ao_led_message_t));
       msg->callback = nextCallback;
-      ao_led_handler_t haoLed = hao.colours[lastColour || event_msg];
-      msg->action = haoLed.color != lastColour;
-      msg->actualColour = haoLed.color;
+      ao_led_handler_t haoLed = hao.colours[wasSet ? lastColour : event_msg];
+      msg->action = event_msg != lastColour && wasSet;
+      msg->actualColour = wasSet ? lastColour : haoLed.color;
       msg->nextColour = (ao_led_color_t) event_msg;
+      wasSet = true;
       ao_led_send(&haoLed, msg);
+      lastColour = haoLed.color;
+    } else {
+    	LOGGER_INFO("I should be closed");
+    	vTaskDelay((TickType_t)(1000 / portTICK_PERIOD_MS));
     }
   }
 }
