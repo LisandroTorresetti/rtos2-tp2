@@ -6,7 +6,7 @@
 #define QUEUE_LENGTH            (10)
 #define QUEUE_ITEM_SIZE         (sizeof(ao_led_message_t*))
 #define HAS_PINS_CONNECTED 0
-#define USE_SAME_QUEUE 1
+#define USE_SAME_QUEUE 0
 
 #if USE_SAME_QUEUE
 static QueueHandle_t queue = NULL;
@@ -30,7 +30,7 @@ static void task(void *argument)
         	taskEXIT_CRITICAL();
         	GPIO_PinState realAction = !msg->action;
 #if USE_SAME_QUEUE
-        	ao_led_color_t color = msg->actualColour;
+        	ao_led_color_t color = msg->actualColour; // If we have the same queue, the msg carries the choice of what colour to use
 #else
         	ao_led_color_t color = hao->color;
 #endif
@@ -65,7 +65,7 @@ bool ao_led_send(ao_led_handler_t* hao, ao_led_message_t* msg) {
 
 void ao_led_init(ao_led_handler_t* hao, ao_led_color_t color) {
     hao->color = color;
-#if USE_SAME_QUEUE // DOne like this because some interpretation on 2 that said to use the same thread of execution
+#if USE_SAME_QUEUE // Done like this because some interpretations on the 2.f. were that we needed to use the same queue for the thread of execution
     if (queue == NULL) {
     	queue = xQueueCreate(QUEUE_LENGTH, QUEUE_ITEM_SIZE);
     }
