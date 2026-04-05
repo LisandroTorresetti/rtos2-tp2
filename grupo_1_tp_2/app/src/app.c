@@ -74,7 +74,7 @@ void app_init(void) {
 	  error_signal();
   }
 
-  ao_led_handler_t colours[3] = { led_red, led_green, led_blue };
+  ao_led_handler_t* colours[3] = { &led_red, &led_green, &led_blue };
   ao_ui_init(colours);
 
   BaseType_t status = xTaskCreate(task_button, "task_button", 128, NULL, tskIDLE_PRIORITY, NULL);

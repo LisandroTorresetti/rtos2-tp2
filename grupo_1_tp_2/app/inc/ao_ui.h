@@ -12,7 +12,7 @@ typedef enum {
     MSG_EVENT_BUTTON_LONG,
 } msg_event_t;
 
-app_err_t ao_ui_init(ao_led_handler_t colours[3]);
+app_err_t ao_ui_init(ao_led_handler_t* colours[3]);
 
 void ao_ui_send_event(event_t button_event);
 

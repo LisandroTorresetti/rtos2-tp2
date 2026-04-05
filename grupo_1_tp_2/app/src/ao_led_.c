@@ -6,27 +6,34 @@
 
 static const char* TASK_NAME = "task_ao_led";
 
-
 static void task(void *argument) {
     ao_led_handler_t* hao = argument;
+
     while (true) {
+    	taskENTER_CRITICAL();
     	action_message_t* msg;
 
-        if (pdPASS == xQueueReceive(hao->hqueue, &msg, portMAX_DELAY)) {
+        if (pdPASS == xQueueReceive(hao->hqueue, &msg, 0)) {
+        	taskEXIT_CRITICAL();
         	GPIO_PinState action = (msg->led_action == TURN_ON) ? GPIO_PIN_SET : GPIO_PIN_RESET;
         	HAL_GPIO_WritePin(hao->led_port, hao->led_pin, action);
         	msg->callback(msg);
+        } else {
+        	hao->task_handler = NULL;
+        	taskEXIT_CRITICAL();
+
+        	mayday_signal();
+
+        	vTaskDelete(NULL);
         }
     }
 }
 
 static app_err_t create_resources(ao_led_handler_t* handler_ao) {
-    BaseType_t status = xTaskCreate(task, TASK_NAME, 512, (void * const) handler_ao, tskIDLE_PRIORITY, NULL);
-    if (pdPASS != status) {
-        return ERR_NO_MEMORY;
-    }
+	handler_ao->task_handler = NULL;
+    BaseType_t status = xTaskCreate(task, TASK_NAME, 512, (void * const) handler_ao, tskIDLE_PRIORITY, &handler_ao->task_handler);
 
-    return APP_OK;
+    return (status == pdPASS) ? APP_OK : ERR_NO_MEMORY;
 }
 
 static void message_processed_callback(void* msg) {
@@ -44,7 +51,16 @@ app_err_t ao_led_init(ao_led_handler_t* handler_ao, GPIO_TypeDef* led_port, uint
         return ERR_NO_MEMORY;
     }
 
-	return create_resources(handler_ao);
+
+    taskENTER_CRITICAL();
+    app_err_t err = create_resources(handler_ao);
+    taskEXIT_CRITICAL();
+
+    if (err != APP_OK) {
+    	return ERR_NO_MEMORY;
+    }
+
+	return APP_OK;
 }
 
 void ao_led_send(ao_led_handler_t* handler_ao, led_action_t action) {
@@ -60,7 +76,21 @@ void ao_led_send(ao_led_handler_t* handler_ao, led_action_t action) {
     if (pdPASS != xQueueSend(handler_ao->hqueue, (void*)&msg, 0)) {
     	mayday_signal();
     	vPortFree(msg);
+    	return;
     }
+
+    taskENTER_CRITICAL();
+	if (handler_ao->task_handler != NULL) {
+		taskEXIT_CRITICAL();
+		return;
+	}
+
+	app_err_t err = create_resources(handler_ao);
+	taskEXIT_CRITICAL();
+
+	if (err != APP_OK) {
+		mayday_signal();
+	}
 }
 
 /********************** end of file ******************************************/

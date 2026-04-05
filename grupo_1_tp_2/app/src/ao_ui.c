@@ -69,11 +69,12 @@ typedef enum {
 // state_t each state has its type and a handler of the corresponding LED
 typedef struct {
 	state_type_t state_type;
-	ao_led_handler_t state_handler;
+	ao_led_handler_t* state_handler;
 } state_t;
 
 
 typedef struct {
+  TaskHandle_t task_handler;
   QueueHandle_t hqueue;
   state_t states[4];
 } ao_ui_handle_t;
@@ -97,7 +98,8 @@ static void task(void *argument) {
   while (true) {
 	  event_message_t* event_msg;
 
-    if (pdPASS == xQueueReceive(ao_ui_handler.hqueue, &event_msg, portMAX_DELAY)) {
+
+    if (pdPASS == xQueueReceive(ao_ui_handler.hqueue, &event_msg, 0)) {
     	state_type_t new_state = event_msg->button_event + 1;
 
     	if (new_state == current_state) {
@@ -107,13 +109,20 @@ static void task(void *argument) {
     	}
 
     	if (current_state != STANDBY_STATE) {
-        	exit_state(&ao_ui_handler.states[current_state].state_handler);
+        	exit_state(ao_ui_handler.states[current_state].state_handler);
     	}
 
-    	entry_state(&ao_ui_handler.states[new_state].state_handler);
+    	entry_state(ao_ui_handler.states[new_state].state_handler);
     	current_state = new_state;
 
     	event_msg->callback(event_msg);
+    } else {
+    	mayday_signal();
+    	taskENTER_CRITICAL();
+    	ao_ui_handler.task_handler = NULL;
+    	taskEXIT_CRITICAL();
+
+    	vTaskDelete(NULL);
     }
   }
 }
@@ -130,16 +139,24 @@ static void message_processed_callback(void* msg) {
 	vPortFree(msg);
 }
 
+static app_err_t create_resources(ao_ui_handle_t* ao_ui_handler) {
+	taskENTER_CRITICAL();
+	ao_ui_handler->task_handler = NULL;
+    BaseType_t status = xTaskCreate(task, TASK_NAME, 512, NULL, tskIDLE_PRIORITY, &ao_ui_handler->task_handler);
+    taskEXIT_CRITICAL();
+
+    return (status == pdPASS) ? APP_OK : ERR_NO_MEMORY;
+}
+
 /********************** external functions PULSE definition ************************/
 
-app_err_t ao_ui_init(ao_led_handler_t colours[3]) {
+app_err_t ao_ui_init(ao_led_handler_t* colours[3]) {
   ao_ui_handler.hqueue = xQueueCreate(QUEUE_LENGTH, QUEUE_ITEM_SIZE);
   if (NULL == ao_ui_handler.hqueue) {
     return ERR_NO_MEMORY;
   }
 
-  BaseType_t status = xTaskCreate(task, TASK_NAME, 512, NULL, tskIDLE_PRIORITY, NULL);
-  if (pdPASS != status) {
+  if (create_resources(&ao_ui_handler) != APP_OK) {
 	  return ERR_NO_MEMORY;
   }
 
@@ -167,6 +184,13 @@ void ao_ui_send_event(event_t button_event) {
 	if (pdPASS != xQueueSend(ao_ui_handler.hqueue, (void*)&msg, 0)) {
 		mayday_signal();
 		vPortFree(msg);
+		return;
+	}
+
+	if (ao_ui_handler.task_handler == NULL) {
+		if (create_resources(&ao_ui_handler) != APP_OK) {
+			mayday_signal();
+		}
 	}
 }
 

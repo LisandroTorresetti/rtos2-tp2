@@ -9,6 +9,7 @@
 #include "messages.h"
 
 typedef struct {
+	TaskHandle_t task_handler;
 	QueueHandle_t hqueue;
 	GPIO_TypeDef* led_port;
 	uint16_t led_pin;
