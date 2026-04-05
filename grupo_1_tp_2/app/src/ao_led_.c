@@ -2,7 +2,7 @@
 #include "board.h"
 
 #define QUEUE_LENGTH            (1)
-#define QUEUE_ITEM_SIZE         (sizeof(ao_led_message_t))
+#define QUEUE_ITEM_SIZE         (sizeof(action_message_t*))
 
 static const char* TASK_NAME = "task_ao_led";
 
@@ -10,15 +10,12 @@ static const char* TASK_NAME = "task_ao_led";
 static void task(void *argument) {
     ao_led_handler_t* hao = argument;
     while (true) {
-        ao_led_message_t msg;
+    	action_message_t* msg;
 
         if (pdPASS == xQueueReceive(hao->hqueue, &msg, portMAX_DELAY)) {
-        	GPIO_PinState action = msg.turn_on ? GPIO_PIN_SET : GPIO_PIN_RESET;
+        	GPIO_PinState action = (msg->led_action == TURN_ON) ? GPIO_PIN_SET : GPIO_PIN_RESET;
         	HAL_GPIO_WritePin(hao->led_port, hao->led_pin, action);
-        	// aca deberia morir la task si no hay mas nada encolado
-        	// el tema es si mato y despues encolo, ahi nada procesa
-        	// de ultima se mete un lock a ese handler
-        	// para ver que onda
+        	msg->callback(msg);
         }
     }
 }
@@ -30,6 +27,10 @@ static app_err_t create_resources(ao_led_handler_t* handler_ao) {
     }
 
     return APP_OK;
+}
+
+static void message_processed_callback(void* msg) {
+	vPortFree(msg);
 }
 
 /********************** external functions definition ************************/
@@ -46,10 +47,20 @@ app_err_t ao_led_init(ao_led_handler_t* handler_ao, GPIO_TypeDef* led_port, uint
 	return create_resources(handler_ao);
 }
 
-bool ao_led_send(ao_led_handler_t* hao, ao_led_message_t* msg) {
-	// aca tiene que haber una logica para crear si no hay handlers
+void ao_led_send(ao_led_handler_t* handler_ao, led_action_t action) {
+	action_message_t* msg = (action_message_t*)pvPortMalloc(sizeof(action_message_t));
+	if (msg == NULL) {
+		mayday_signal();
+		return;
+	}
 
-    return (pdPASS == xQueueSend(hao->hqueue, (void*)msg, 0));
+	msg->led_action = action;
+	msg->callback = message_processed_callback;
+
+    if (pdPASS != xQueueSend(handler_ao->hqueue, (void*)&msg, 0)) {
+    	mayday_signal();
+    	vPortFree(msg);
+    }
 }
 
 /********************** end of file ******************************************/
