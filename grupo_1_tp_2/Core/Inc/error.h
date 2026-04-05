@@ -13,4 +13,6 @@ typedef int32_t app_err_t;
 
 void error_signal();
 
+void mayday_signal();
+
 #endif /* INC_ERROR_H_ */
