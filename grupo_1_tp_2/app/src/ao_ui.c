@@ -47,16 +47,18 @@
 
 #include "ao_ui.h"
 #include "ao_led.h"
+#include "messages.h"
 
 /********************** macros and definitions *******************************/
 
 #define QUEUE_LENGTH            (1)
-#define QUEUE_ITEM_SIZE         (sizeof(msg_event_t))
+#define QUEUE_ITEM_SIZE         (sizeof(event_message_t*))
 
 static const char* TASK_NAME = "task_ao_ui";
 
 /********************** internal data declaration ****************************/
 
+// States of the Finite State Machine
 typedef enum {
     STANDBY_STATE,
     RED_STATE,
@@ -64,10 +66,12 @@ typedef enum {
 	BLUE_STATE
 } state_type_t;
 
+// state_t each state has its type and a handler of the corresponding LED
 typedef struct {
 	state_type_t state_type;
 	ao_led_handler_t state_handler;
 } state_t;
+
 
 typedef struct {
   QueueHandle_t hqueue;
@@ -91,12 +95,14 @@ static ao_ui_handle_t ao_ui_handler;
 
 static void task(void *argument) {
   while (true) {
-    msg_event_t event_msg;
+	  event_message_t* event_msg;
 
     if (pdPASS == xQueueReceive(ao_ui_handler.hqueue, &event_msg, portMAX_DELAY)) {
-    	state_type_t new_state = event_msg + 1;
+    	state_type_t new_state = event_msg->button_event + 1;
 
     	if (new_state == current_state) {
+    		// NoOp
+    		event_msg->callback(event_msg);
     		continue;
     	}
 
@@ -105,24 +111,24 @@ static void task(void *argument) {
     	}
 
     	entry_state(&ao_ui_handler.states[new_state].state_handler);
-
     	current_state = new_state;
+
+    	event_msg->callback(event_msg);
     }
   }
 }
 
 void entry_state(ao_led_handler_t* ao_led_handler) {
-	ao_led_message_t msg;
-	msg.turn_on = true;
-	ao_led_send(ao_led_handler, &msg);
+	ao_led_send(ao_led_handler, TURN_ON);
 }
 
 void exit_state(ao_led_handler_t* ao_led_handler) {
-	ao_led_message_t msg;
-	msg.turn_on = false;
-	ao_led_send(ao_led_handler, &msg);
+	ao_led_send(ao_led_handler, TURN_OFF);
 }
 
+static void message_processed_callback(void* msg) {
+	vPortFree(msg);
+}
 
 /********************** external functions PULSE definition ************************/
 
@@ -148,8 +154,20 @@ app_err_t ao_ui_init(ao_led_handler_t colours[3]) {
   return APP_OK;
 }
 
-bool ao_ui_send_event(msg_event_t msg) {
-  return (pdPASS == xQueueSend(ao_ui_handler.hqueue, &msg, 0));
+void ao_ui_send_event(event_t button_event) {
+	event_message_t* msg = (event_message_t*)pvPortMalloc(sizeof(event_message_t));
+	if (msg == NULL) {
+		mayday_signal();
+		return;
+	}
+
+	msg->button_event = button_event;
+	msg->callback = message_processed_callback;
+
+	if (pdPASS != xQueueSend(ao_ui_handler.hqueue, (void*)&msg, 0)) {
+		mayday_signal();
+		vPortFree(msg);
+	}
 }
 
 /********************** end of file ******************************************/

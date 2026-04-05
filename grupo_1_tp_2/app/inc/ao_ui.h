@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #include "ao_led.h"
+#include "messages.h"
 
 typedef enum {
     MSG_EVENT_BUTTON_PULSE,
@@ -13,6 +14,6 @@ typedef enum {
 
 app_err_t ao_ui_init(ao_led_handler_t colours[3]);
 
-bool ao_ui_send_event(msg_event_t msg);
+void ao_ui_send_event(event_t button_event);
 
 #endif /* INC_AO_UI_H_ */
