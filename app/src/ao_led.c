@@ -5,7 +5,7 @@
 
 #define QUEUE_LENGTH            (10)
 #define QUEUE_ITEM_SIZE         (sizeof(ao_led_message_t*))
-#define HAS_PINS_CONNECTED 0
+#define HAS_PINS_CONNECTED 1
 #define USE_SAME_QUEUE 0
 
 #if USE_SAME_QUEUE
